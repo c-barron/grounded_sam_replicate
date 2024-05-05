@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import torch
+import time
 
 #install GroundingDINO and segment_anything
 os.environ['CUDA_HOME'] = '/usr/local/cuda-11.7'
@@ -10,24 +11,26 @@ os.environ['BUILD_WITH_CUDA'] = 'true'
 
 env_vars = os.environ.copy()
 HOME = os.getcwd()
-sys.path.insert(0, "weights")
-sys.path.insert(0, "weights/GroundingDINO")
-sys.path.insert(0, "weights/segment-anything")
-os.chdir("/src/weights/GroundingDINO")
-subprocess.call([sys.executable, '-m', 'pip', 'install', '-e', '.'], env=env_vars)
-os.chdir("/src/weights/segment-anything")
-subprocess.call([sys.executable, '-m', 'pip', 'install', '-e', '.'], env=env_vars)
-os.chdir(HOME)
+# sys.path.insert(0, "weights")
+# # sys.path.insert(0, "weights/GroundingDINO")
+# sys.path.insert(0, "weights/segment-anything")
+# # os.chdir("/src/weights/GroundingDINO")
+# # subprocess.call([sys.executable, '-m', 'pip', 'install', '-e', '.'], env=env_vars)
+# os.chdir("/src/weights/segment-anything")
+# subprocess.call([sys.executable, '-m', 'pip', 'install', '-e', '.'], env=env_vars)
+# os.chdir(HOME)
 
 from cog import BasePredictor, Input, Path, BaseModel
 from typing import Iterator
-from groundingdino.util.slconfig import SLConfig
-from groundingdino.models import build_model
-from groundingdino.util.utils import clean_state_dict
-from segment_anything import build_sam, SamPredictor
+# from groundingdino.util.slconfig import SLConfig
+# from groundingdino.models import build_model
+# from groundingdino.util.utils import clean_state_dict
+# from segment_anything import build_sam, SamPredictor
 from grounded_sam import run_grounding_sam
 import uuid
-from hf_path_exports import cache_config_file, cache_file
+# from hf_path_exports import cache_config_file, cache_file
+from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection, SamModel, SamProcessor
+
 
 class Predictor(BasePredictor):
     def setup(self):
@@ -35,20 +38,46 @@ class Predictor(BasePredictor):
         print("Loading pipelines...x")
 
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        start_time = time.time()
 
-        def load_model_hf(device='cpu'):
-            args = SLConfig.fromfile(cache_config_file)
-            args.device = device
-            model = build_model(args)
-            checkpoint = torch.load(cache_file, map_location=device)
-            log = model.load_state_dict(clean_state_dict(checkpoint['model']), strict=False)
-            print("Model loaded from {} \n => {}".format(cache_file, log))
-            _ = model.eval()
-            return model
+        # dino_processor = AutoProcessor.from_pretrained("IDEA-Research/grounding-dino-base")
+        dino_model = AutoModelForZeroShotObjectDetection.from_pretrained("./model/grounding-dino-base").to(device)
+        print("DINO MODEL LOADED",  time.time() - start_time)
+        start_time = time.time()
 
-        self.groundingdino_model = load_model_hf(device)
-        sam_checkpoint = '/src/weights/sam_vit_h_4b8939.pth'
-        self.sam_predictor = SamPredictor(build_sam(checkpoint=sam_checkpoint).to(device))
+        dino_processor = AutoProcessor.from_pretrained("./processor/grounding-dino-base")
+        print("DINO PROCESSOR LOADED",  time.time() - start_time)
+        start_time = time.time()
+
+
+
+        # def load_model_hf(device='cpu'):
+        #     args = SLConfig.fromfile(cache_config_file)
+        #     args.device = device
+        #     model = build_model(args)
+        #     checkpoint = torch.load(cache_file, map_location=device)
+        #     log = model.load_state_dict(clean_state_dict(checkpoint['model']), strict=False)
+        #     print("Model loaded from {} \n => {}".format(cache_file, log))
+        #     _ = model.eval()
+        #     return model
+
+        self.groundingdino_model = dino_model
+        self.groundingdino_processor = dino_processor
+
+        sam_model = SamModel.from_pretrained("./model/sam-vit-base").to(device)
+        print("SAM MODEL LOADED",  time.time() - start_time)
+        start_time = time.time()
+
+        sam_processor = SamProcessor.from_pretrained("./processor/sam-vit-base")
+        print("SAM PROCESSOR LOADED",  time.time() - start_time)
+        start_time = time.time()
+
+        self.sam_model = sam_model
+        self.sam_processor = sam_processor
+
+        # sam_checkpoint = '/src/weights/sam_vit_h_4b8939.pth'
+        # self.sam_predictor = SamPredictor(build_sam(checkpoint=sam_checkpoint).to(device))
+        print("ALL MODELS LOADED")
 
     @torch.inference_mode()
     def predict(
@@ -79,7 +108,9 @@ class Predictor(BasePredictor):
                                                                                                     mask_prompt,
                                                                                                     negative_mask_prompt,
                                                                                                     self.groundingdino_model,
-                                                                                                    self.sam_predictor,
+                                                                                                    self.groundingdino_processor,
+                                                                                                    self.sam_model,
+                                                                                                    self.sam_processor,
                                                                                                     adjustment_factor)
         print("Done!")
 
