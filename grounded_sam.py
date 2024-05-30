@@ -371,11 +371,11 @@ def grounded_segmentation(
     print(detections)
 
     if len(detections) == 0: 
-        print("OH NO")
+        print("No detections found, returning")
+        return np.array(image), detections
 
     print("Running Segmentation")
     detections = segment(segmentator, processor, image, detections, polygon_refinement)
-    print(detections)
 
     return np.array(image), detections
 
@@ -388,6 +388,16 @@ def show_masked_image(image: np.ndarray, mask: np.ndarray) -> None:
     plt.axis('off')
     plt.show()
 
+def merge_masks(mask1, mask2):
+    # Ensure both masks are of type uint8
+    if mask1.dtype != np.uint8:
+        mask1 = mask1.astype(np.uint8)
+    if mask2.dtype != np.uint8:
+        mask2 = mask2.astype(np.uint8)
+
+    # Use np.maximum to merge the masks
+    merged_mask = np.maximum(mask1, mask2)
+    return merged_mask
 
 def merge_masks_by_class(detection_results: List[DetectionResult]) -> List[DetectionResult]:
     merged_masks = defaultdict(lambda: None)
@@ -402,7 +412,7 @@ def merge_masks_by_class(detection_results: List[DetectionResult]) -> List[Detec
             merged_boxes[label] = result.box
         else:
             if result.mask is not None:
-                merged_masks[label] = np.logical_or(merged_masks[label], result.mask)
+                merged_masks[label] = merge_masks(merged_masks[label], result.mask)
 
             box = merged_boxes[label]
             merged_boxes[label] = BoundingBox(

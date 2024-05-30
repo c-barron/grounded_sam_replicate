@@ -66,8 +66,6 @@ class Predictor(BasePredictor):
         
         print("Pipelines loaded...x")
     
-
-
     
     @torch.inference_mode()
     def predict(
@@ -93,8 +91,6 @@ class Predictor(BasePredictor):
         outputs = run_grounding_sam(image, prompts, self.object_detector, self.segmentator, self.processor, threshold)
 
         print("Done!")
-        print(outputs)
-
 
         # Create a list to store the output paths
         output_paths = []
@@ -107,7 +103,6 @@ class Predictor(BasePredictor):
 
         # Iterate over the prompts and yield the corresponding mask or fallback image
         for prompt in prompts:
-            print("Prompt: ", prompt)
             image = outputs.get(prompt, fallback_image)
             random_filename = os.path.join(output_dir, f"{prompt.replace(' ', '_')}.jpg")
             if image.mode != 'RGB':
