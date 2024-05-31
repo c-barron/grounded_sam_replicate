@@ -12,6 +12,18 @@ Grounding DINO, a strong zero-shot detector which, is capable of to generate hig
 
 On top of Segment-Anything & Grounding DINO this project adds possibility to prompt multiple masks and combine them into one, as well to subtract negative mask for fine grain control.
 
+
+# Setup
+To test models locally, you need to download the models / repos:
+```
+mkdir models
+cd models
+git-lfs install
+git clone https://huggingface.co/google/owlv2-base-patch16-ensemble
+git clone https://huggingface.co/facebook/sam-vit-base
+```
+
+
 ## Citation
 
 ```BibTex

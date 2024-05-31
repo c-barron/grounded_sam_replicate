@@ -10,6 +10,12 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v3
+      # Install git and git-lfs
+      - name: Install Git and Git LFS
+        run: |
+          sudo apt update
+          sudo apt install -y git git-lfs
+          git lfs install
         #to save disk space due to large image size
       - name: Cleanup unused docker images
         run: |
@@ -26,6 +32,12 @@ jobs:
            chmod +x ./script/free_disk_space.sh
            ./script/free_disk_space.sh
         shell: bash
+      #to download models
+      - name: Download Models
+        run: |
+           chmod +x ./script/download_models.sh
+           ./script/download_models.sh
+        shell: bash
       - name: Install Cog
         run: |
           sudo curl -o /usr/local/bin/cog -L https://github.com/replicate/cog/releases/download/v0.8.0-beta3/cog_Linux_x86_64
@@ -36,9 +48,6 @@ jobs:
           REPLICATE_API_TOKEN: ${{ secrets.REPLICATE_API_TOKEN }}
         run: |
           echo $REPLICATE_API_TOKEN | cog login --token-stdin
-      - name: Download model weights
-        run: |
-          cog run script/download_weights.py
       - name: Push to Replicate
         run: |
           cog push r8.im/schananas/grounded_sam
