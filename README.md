@@ -14,6 +14,14 @@ On top of Segment-Anything & Grounding DINO this project adds possibility to pro
 
 
 # Setup
+If you don't have a GPU that can run these models, use a Lamda Instance (it's the only service that allows you to run cog)
+
+1. Follow instructions on cog repo to install cog onto the instance: https://github.com/replicate/cog/
+2. Clone this repo and cd into it
+3. Install the models (by running the script in /scripts folder or following the instructions to manually install below)
+4. run ```sudo cog predict```
+
+
 To test models locally, you need to download the models / repos:
 ```
 mkdir models

@@ -50,6 +50,8 @@ class Predictor(BasePredictor):
             processor = AutoProcessor.from_pretrained(segmenter_id)
             return segmentator, processor
 
+        # detector_id = "./models/grounding-dino-tiny"
+        # detector_id = "./models/grounding-dino-base"
         detector_id = "./models/owlv2-base-patch16-ensemble"
         segmenter_id = "./models/sam-vit-base"
         
@@ -62,6 +64,7 @@ class Predictor(BasePredictor):
 
         
         print("Pipelines loaded...x")
+    
     
     @torch.inference_mode()
     def predict(
@@ -76,7 +79,7 @@ class Predictor(BasePredictor):
             ),
             threshold: float = Input(
                 description="Cutof for object detection",
-                default=0.15,
+                default=0.30, #S et to 0.30 for dino, 0.10 for owl
             )
     ) -> Iterator[Path]:
         """Run a single prediction on the model"""
