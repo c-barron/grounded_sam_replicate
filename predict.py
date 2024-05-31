@@ -38,23 +38,20 @@ class Predictor(BasePredictor):
         """Load the model into memory to make running multiple predictions efficient"""
         print("Loading pipelines...x")
 
-        def load_detector(detector_id: Optional[str] = None):
+        def load_detector(detector_id: str):
             device = "cuda" if torch.cuda.is_available() else "cpu"
-            detector_id = detector_id if detector_id is not None else "IDEA-Research/grounding-dino-tiny"
             object_detector = pipeline(model=detector_id, task="zero-shot-object-detection", device=device)
             return object_detector
         
         
-        def load_segmentator(segmenter_id: Optional[str] = None):
+        def load_segmentator(segmenter_id: str):
             device = "cuda" if torch.cuda.is_available() else "cpu"
-            segmenter_id = segmenter_id if segmenter_id is not None else "facebook/sam-vit-base"
-
             segmentator = AutoModelForMaskGeneration.from_pretrained(segmenter_id).to(device)
             processor = AutoProcessor.from_pretrained(segmenter_id)
             return segmentator, processor
 
-        detector_id = "google/owlv2-base-patch16-ensemble"
-        segmenter_id = "facebook/sam-vit-base"
+        detector_id = "./models/owlv2-base-patch16-ensemble"
+        segmenter_id = "./models/sam-vit-base"
         
         object_detector = load_detector(detector_id)
         segmentator, processor = load_segmentator(segmenter_id)
@@ -65,7 +62,6 @@ class Predictor(BasePredictor):
 
         
         print("Pipelines loaded...x")
-    
     
     @torch.inference_mode()
     def predict(
