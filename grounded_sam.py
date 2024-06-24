@@ -353,7 +353,7 @@ def grounded_segmentation(
     polygon_refinement: bool = False,
     detector_id: Optional[str] = None,
     segmenter_id: Optional[str] = None
-) -> Tuple[np.ndarray, List[DetectionResult]]:
+) -> Tuple[np.ndarray, List[DetectionResult], np.ndarray]:
     print("Loading Image")
     
     if isinstance(image, (str, Path)):
@@ -372,12 +372,16 @@ def grounded_segmentation(
 
     if len(detections) == 0: 
         print("No detections found, returning")
-        return np.array(image), detections
+        return np.array(image), detections, None
+
+     # Annotate the original image with the detections
+    annotated_image_array = annotate(image, detections)
+
 
     print("Running Segmentation")
     detections = segment(segmentator, processor, image, detections, polygon_refinement)
 
-    return np.array(image), detections
+    return np.array(image), detections, annotated_image_array
 
 ## Mask Merging Utils
 def show_masked_image(image: np.ndarray, mask: np.ndarray) -> None:
@@ -452,7 +456,7 @@ def numpy_to_image(np_array: np.ndarray) -> Image:
 
 def run_grounding_sam(image, prompts, detector, segmentator, processor, threshold) -> Dict[str, Image.Image]:
     print(image)
-    image_array, detections = grounded_segmentation(
+    image_array, detections, annotation_image_array = grounded_segmentation(
         detector,
         segmentator,
         processor,
@@ -464,6 +468,9 @@ def run_grounding_sam(image, prompts, detector, segmentator, processor, threshol
 
     merged_detections = merge_masks_by_class(detections)
     output_dict = {result.label: numpy_to_image(result.mask) for result in merged_detections if result.mask is not None}
+    if annotation_image_array is not None:
+        annotated_image = numpy_to_image(annotation_image_array)
+        output_dict['annotated_image'] = annotated_image
 
     return output_dict
 

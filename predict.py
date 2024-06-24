@@ -91,9 +91,6 @@ class Predictor(BasePredictor):
 
         print("Done!")
 
-        # Create a list to store the output paths
-        output_paths = []
-    
         output_dir = "/tmp/" + predict_id
         os.makedirs(output_dir, exist_ok=True)
     
@@ -109,3 +106,10 @@ class Predictor(BasePredictor):
                 image = image.convert('RGB')
             image.save(random_filename)
             yield Path(random_filename)  # Yield the path to the saved image
+
+        # Extract the annotated image if it exists and is a PIL Image
+        annotated_image = outputs.get('annotated_image', None)
+        if isinstance(annotated_image, Image.Image):
+            annotated_image_path = os.path.join(output_dir, "annotated_image.jpg")
+            annotated_image.save(annotated_image_path)
+            yield Path(annotated_image_path)  # Yield the path to the saved annotated image

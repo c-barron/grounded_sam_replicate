@@ -21,7 +21,7 @@ If you don't have a GPU that can run these models, use a Lamda Instance (it's th
 3. Install the models (by running the script in /scripts folder or following the instructions to manually install below)
 4. run ```sudo cog predict```
 
-
+### Install Models Manually (skip if you ran the script)
 To test models locally, you need to download the models / repos:
 ```
 mkdir models
@@ -30,6 +30,21 @@ git-lfs install
 git clone https://huggingface.co/google/owlv2-base-patch16-ensemble
 git clone https://huggingface.co/facebook/sam-vit-base
 ```
+
+### Swapping models
+To use Grounding Dino instead of OwlV2, download the corresponding model into the model folder, and modify the setup param in predict.py
+
+For Dino models use threshold closer to 0.3, for owlv2 use threshold closer to 0.1
+
+# Deploy
+### To Replicate
+```
+cog login
+cog push r8.im/c-barron/zero-shot-segmentation
+```
+### To Runpod
+
+
 
 
 ## Citation
