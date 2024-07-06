@@ -1,12 +1,4 @@
 
-import sys
-# sys.path.insert(0, "weights/Grounded-Segment-Anything/GroundingDINO")
-# sys.path.insert(0, "weights/Grounded-Segment-Anything/segment_anything")
-
-# from groundingdino.util import box_ops
-# from groundingdino.util.inference import annotate, load_image, predict
-
-import random
 from dataclasses import dataclass
 from typing import Any, List, Dict, Optional, Union, Tuple
 from pathlib import Path
@@ -16,9 +8,7 @@ import torch
 import requests
 import numpy as np
 from PIL import Image
-# import plotly.express as px
 import matplotlib.pyplot as plt
-# import plotly.graph_objects as go
 
 ## Result Utils
 @dataclass
@@ -342,6 +332,31 @@ def segment(
         detection_result.mask = mask
 
     return detection_results
+
+
+def detection_only(
+    detector,
+    image: Union[Image.Image, str, Path],
+    labels: List[str],
+    threshold: float = 0.3,
+) ->  List[DetectionResult]:
+    if isinstance(image, (str, Path)):
+        image = load_image(image)
+
+    if image is None:
+        raise ValueError("Failed to load the image.")
+    
+    resolution = image.size
+        
+    print("Running Detection")
+    print("Prompts: ", labels)
+    print("Threshold: ", threshold)
+    print("Resolution:", image.size)
+    
+    detections = detect(detector, image, labels, threshold)
+    print(detections)
+    return detections, resolution
+    
 
 def grounded_segmentation(
     detector,
