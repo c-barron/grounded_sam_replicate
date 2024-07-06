@@ -17,7 +17,7 @@ from grounded_sam import DetectionResult, detection_only
 import uuid
 
 
-class Output(BaseModel):
+class Detection(BaseModel):
     label: str
     score: float
     xmin: float
@@ -25,6 +25,8 @@ class Output(BaseModel):
     ymin: float
     ymax: float
 
+class Output(BaseModel):
+    detections: List[Detection]
 
 
 class Predictor(BasePredictor):
@@ -75,7 +77,7 @@ class Predictor(BasePredictor):
                 description="Cutof for object detection",
                 default=0.15, #S et to 0.30 for dino, 0.10 for owl
             )
-    ) -> List[Output]:
+    ) -> Output:
         """Run a single prediction on the model"""
         predict_id = str(uuid.uuid4())
 
@@ -85,10 +87,10 @@ class Predictor(BasePredictor):
         print("DETECTIONS: ", detections)
         
 
-        outputs = []
+        output_detections = []
         #Iterate 
         for detection in detections:
-            output = Output(
+            flattened_detection = Detection(
                 label=detection.label,
                 score=detection.score,
                 # Normalize the coordinates
@@ -97,7 +99,10 @@ class Predictor(BasePredictor):
                 ymin=detection.box.ymin / image_resolution[1], 
                 ymax=detection.box.ymax / image_resolution[1],
             )
-            outputs.append(output)
-        print("OUTPUTS: ", outputs)
-        return outputs
+          
+            output_detections.append(flattened_detection)
+        output = Output(
+            detections = output_detections
+        )
+        return output
 
