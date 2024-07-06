@@ -39,13 +39,22 @@ For Dino models use threshold closer to 0.3, for owlv2 use threshold closer to 0
 # Deploy
 ### To Replicate
 ```
-cog login
-cog push r8.im/c-barron/zero-shot-segmentation
+sudo cog login
+sudo cog push r8.im/c-barron/zero-shot-segmentation
 ```
 ### To Runpod
+Follow instructions here https://blog.runpod.io/replicate-cog-migration/
 
+# Github Login
+### Install gh cli for auth
+https://github.com/cli/cli/blob/trunk/docs/install_linux.md
+```gh auth login```
 
-
+### Set git global config
+```
+git config --global user.email "email"
+git config --global user.name "username"
+```
 
 ## Citation
 
