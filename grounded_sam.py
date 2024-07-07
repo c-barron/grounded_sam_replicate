@@ -9,6 +9,7 @@ import sys
 import random
 from dataclasses import dataclass
 from typing import Any, List, Dict, Optional, Union, Tuple
+from pydantic import BaseModel
 from pathlib import Path
 from collections import defaultdict
 import cv2
@@ -19,6 +20,21 @@ from PIL import Image
 # import plotly.express as px
 import matplotlib.pyplot as plt
 # import plotly.graph_objects as go
+
+
+
+class Prompt(BaseModel):
+    label: str
+    is_positive: bool
+    xmin: float
+    xmax: float
+    ymin: float
+    ymax: float
+
+
+class PromptList(BaseModel):
+    prompts: List[Prompt]
+
 
 ## Result Utils
 @dataclass
@@ -48,6 +64,29 @@ class DetectionResult:
                                    xmax=detection_dict['box']['xmax'],
                                    ymax=detection_dict['box']['ymax']))
 
+    @classmethod
+    def from_prompt(cls, image_resolution: Tuple[int, int], prompt: Prompt, default_score: float = 1.0, mask: Optional[np.array] = None) -> 'DetectionResult':
+        # Normalize the bounding box coordinates
+        xmin = int(prompt.xmin * image_resolution[0])
+        ymin = int(prompt.ymin * image_resolution[1])
+        xmax = int(prompt.xmax * image_resolution[0])
+        ymax = int(prompt.ymax * image_resolution[1])
+        return cls(score=default_score,
+                   label=prompt.label,
+                   box=BoundingBox(xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax),
+                   mask=mask)
+        
+    def to_dict(self) -> Dict:
+        return {
+            'score': self.score,
+            'label': self.label,
+            'box': {
+                'xmin': self.box.xmin,
+                'ymin': self.box.ymin,
+                'xmax': self.box.xmax,
+                'ymax': self.box.ymax
+            }
+        }
 
 
 
@@ -343,6 +382,28 @@ def segment(
 
     return detection_results
 
+def sam_only(
+    segmentator,
+    processor,
+    image: Union[Image.Image, str, Path],
+    detections: List[DetectionResult],
+    polygon_refinement: bool = False,
+) -> Tuple[np.ndarray, List[DetectionResult]]:
+    
+    if image is None:
+        raise ValueError("Failed to load the image.")
+
+    if len(detections) == 0: 
+        print("No detections found, returning")
+        return np.array(image), detections, None
+
+    print("Running Segmentation")
+    detections = segment(segmentator, processor, image, detections, polygon_refinement)
+
+    return np.array(image), detections
+
+
+
 def grounded_segmentation(
     detector,
     segmentator,
@@ -452,25 +513,50 @@ def numpy_to_image(np_array: np.ndarray) -> Image:
     return Image.fromarray(np_array)
 
 
-## Inference
 
-def run_grounding_sam(image, prompts, detector, segmentator, processor, threshold) -> Dict[str, Image.Image]:
-    print(image)
-    image_array, detections, annotation_image_array = grounded_segmentation(
-        detector,
+def run_sam_only(image, prompts: List[Prompt], segmentator, processor) -> Dict[str, Image.Image]:
+
+    print("Loading Image")
+    
+    if isinstance(image, (str, Path)):
+        image = load_image(image)
+
+
+    detections = [DetectionResult.from_prompt(image.size, prompt) for prompt in prompts]
+
+    _, detections = sam_only(
         segmentator,
         processor,
         image=image,
-        labels=prompts,
-        threshold=threshold,
+        detections=detections,
         polygon_refinement=True,
     )
 
     merged_detections = merge_masks_by_class(detections)
     output_dict = {result.label: numpy_to_image(result.mask) for result in merged_detections if result.mask is not None}
-    if annotation_image_array is not None:
-        annotated_image = numpy_to_image(annotation_image_array)
-        output_dict['annotated_image'] = annotated_image
-
+   
     return output_dict
+
+
+
+
+# def run_grounding_sam(image, prompts, detector, segmentator, processor, threshold) -> Dict[str, Image.Image]:
+#     print(image)
+#     image_array, detections, annotation_image_array = grounded_segmentation(
+#         detector,
+#         segmentator,
+#         processor,
+#         image=image,
+#         labels=prompts,
+#         threshold=threshold,
+#         polygon_refinement=True,
+#     )
+
+#     merged_detections = merge_masks_by_class(detections)
+#     output_dict = {result.label: numpy_to_image(result.mask) for result in merged_detections if result.mask is not None}
+#     if annotation_image_array is not None:
+#         annotated_image = numpy_to_image(annotation_image_array)
+#         output_dict['annotated_image'] = annotated_image
+
+#     return output_dict
 

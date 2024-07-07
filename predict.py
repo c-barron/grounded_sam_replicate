@@ -3,7 +3,11 @@ import sys
 import subprocess
 import torch
 
-from transformers import AutoModelForMaskGeneration, AutoProcessor, pipeline
+from pydantic import ValidationError, parse_raw_as
+import numpy as np
+from typing import Union
+
+from transformers import AutoModelForMaskGeneration, AutoProcessor
 from PIL import Image
 
 #install GroundingDINO and segment_anything
@@ -28,21 +32,21 @@ from typing import Iterator, List, Optional
 # from groundingdino.models import build_model
 # from groundingdino.util.utils import clean_state_dict
 # from segment_anything import build_sam, SamPredictor
-from grounded_sam import run_grounding_sam
+from grounded_sam import run_sam_only, PromptList
 import uuid
 # from hf_path_exports import cache_config_file, cache_file
 
+class Mask(BaseModel):
+    mask: Path
+    label: str
+
+class Output(BaseModel):
+    masks: List[Mask]
 
 class Predictor(BasePredictor):
     def setup(self):
         """Load the model into memory to make running multiple predictions efficient"""
         print("Loading pipelines...x")
-
-        def load_detector(detector_id: str):
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            object_detector = pipeline(model=detector_id, task="zero-shot-object-detection", device=device)
-            return object_detector
-        
         
         def load_segmentator(segmenter_id: str):
             device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -50,66 +54,80 @@ class Predictor(BasePredictor):
             processor = AutoProcessor.from_pretrained(segmenter_id)
             return segmentator, processor
 
-        # detector_id = "./models/grounding-dino-tiny"
-        # detector_id = "./models/grounding-dino-base"
-        detector_id = "./models/owlv2-base-patch16-ensemble"
         segmenter_id = "./models/sam-vit-base"
         
-        object_detector = load_detector(detector_id)
         segmentator, processor = load_segmentator(segmenter_id)
 
-        self.object_detector = object_detector
         self.segmentator = segmentator
         self.processor = processor
 
         
         print("Pipelines loaded...x")
     
+# label: str
+#     is_positive: bool
+#     xmin: float
+#     xmax: float
+#     ymin: float
+#     ymax: float
+
     
     @torch.inference_mode()
     def predict(
             self,
             image: Path = Input(
-                description="Image",
-                default="https://st.mngbcn.com/rcs/pics/static/T5/fotos/outfit/S20/57034757_56-99999999_01.jpg",
+            description="Image",
+            default="https://st.mngbcn.com/rcs/pics/static/T5/fotos/outfit/S20/57034757_56-99999999_01.jpg",
             ),
-            prompts: List[str] = Input(
-                description="List of mask prompts. Each should end with a period?",
-                default=["face."],
+            prompts_json: str = Input(
+                description="JSON string of prompt object type (see documentation)",
+                default='{"prompts": [{"label": "face", "xmin": 0.1, "xmax": 0.9, "ymin": 0.1, "ymax": 0.9, "is_positive": true}]}',
             ),
-            threshold: float = Input(
-                description="Cutof for object detection",
-                default=0.30, #S et to 0.30 for dino, 0.10 for owl
-            )
-    ) -> Iterator[Path]:
+    
+    ) -> Output:
         """Run a single prediction on the model"""
         predict_id = str(uuid.uuid4())
 
         print(f"Running prediction: {predict_id}...")
+        
+        # Try to parse prompts as a PromptList
+        try:
+            prompts_list = parse_raw_as(PromptList, prompts_json)        
+        except ValidationError as e:
+            print(f"Error parsing prompts: {e}")
+            raise e
 
-        outputs = run_grounding_sam(image, prompts, self.object_detector, self.segmentator, self.processor, threshold)
-
+        # Access prompts from the parsed object
+        prompts = prompts_list.prompts
+        outputs = run_sam_only(image, prompts, self.segmentator, self.processor)
+    
         print("Done!")
 
         output_dir = "/tmp/" + predict_id
         os.makedirs(output_dir, exist_ok=True)
     
         # Create a black image for fallback
-        fallback_image = Image.new('RGB', (10, 10), color='black')
+        # fallback_image = Image.new('RGB', (10, 10), color='black')
+
+        mask_dicts = []
 
         # Iterate over the prompts and yield the corresponding mask or fallback image
         for prompt in prompts:
-            image = outputs.get(prompt, fallback_image)
-            random_filename = os.path.join(output_dir, f"{prompt.replace(' ', '_')}.jpg")
+            label = prompt.label
+            image = outputs.get(label, None)
+            if image is None:
+                print(f"Could not find mask for label: {label}")
+                continue
+
+            random_filename = os.path.join(output_dir, f"{label.replace(' ', '_')}.jpg")
             if image.mode != 'RGB':
                 print("Converting image to RGB")
                 image = image.convert('RGB')
             image.save(random_filename)
-            yield Path(random_filename)  # Yield the path to the saved image
 
-        # Extract the annotated image if it exists and is a PIL Image
-        annotated_image = outputs.get('annotated_image', None)
-        if isinstance(annotated_image, Image.Image):
-            annotated_image_path = os.path.join(output_dir, "annotated_image.jpg")
-            annotated_image.save(annotated_image_path)
-            yield Path(annotated_image_path)  # Yield the path to the saved annotated image
+
+            mask_dicts.append(Mask(mask=Path(random_filename), label=label))
+
+        print(mask_dicts)
+
+        return Output(masks=mask_dicts)
